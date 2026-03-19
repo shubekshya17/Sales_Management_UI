@@ -1,0 +1,167 @@
+import 'package:flutter/material.dart';
+
+enum NavItem {
+  salesCollection,
+  salesDetail,
+  kot,
+  categoryRange,
+  excelUpload,
+  salesDetailReport,
+}
+
+class Sidebar extends StatelessWidget {
+  final NavItem selected;
+  final ValueChanged<NavItem> onSelect;
+
+  const Sidebar({super.key, required this.selected, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 230,
+      color: const Color(0xFF1A237E),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── App Title ──
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 32, 20, 16),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.bar_chart, color: Colors.white, size: 28),
+                SizedBox(height: 8),
+                Text(
+                  'Sales\nManagement',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(color: Colors.white24, thickness: 1),
+          const SizedBox(height: 8),
+
+          // ── Main Navigation ──
+          _NavTile(
+            icon: Icons.receipt_long,
+            label: 'Sales Collection',
+            isSelected: selected == NavItem.salesCollection,
+            onTap: () => onSelect(NavItem.salesCollection),
+          ),
+          _NavTile(
+            icon: Icons.list_alt,
+            label: 'Sales Detail',
+            isSelected: selected == NavItem.salesDetail,
+            onTap: () => onSelect(NavItem.salesDetail),
+          ),
+          _NavTile(
+            icon: Icons.restaurant_menu,
+            label: 'KOT',
+            isSelected: selected == NavItem.kot,
+            onTap: () => onSelect(NavItem.kot),
+          ),
+          _NavTile(
+            icon: Icons.upload_file,
+            label: 'Excel Upload',
+            isSelected: selected == NavItem.excelUpload,
+            onTap: () => onSelect(NavItem.excelUpload),
+          ),
+          _NavTile(
+            icon: Icons.category,
+            label: 'Category Range',
+            isSelected: selected == NavItem.categoryRange,
+            onTap: () => onSelect(NavItem.categoryRange),
+          ),
+
+          const SizedBox(height: 8),
+
+          // ── Reports Section Header ──
+          // This is just a label, not clickable
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              'REPORTS',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.4),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+
+          const Divider(
+            color: Colors.white24,
+            thickness: 1,
+            indent: 16,
+            endIndent: 16,
+          ),
+          const SizedBox(height: 4),
+
+          // ── Report Items ──
+          _NavTile(
+            icon: Icons.bar_chart_rounded,
+            label: 'Sales Detail Report',
+            isSelected: selected == NavItem.salesDetailReport,
+            onTap: () => onSelect(NavItem.salesDetailReport),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NavTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _NavTile({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.white.withOpacity(0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : Colors.white60,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white60,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
