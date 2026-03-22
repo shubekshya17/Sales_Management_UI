@@ -7,8 +7,6 @@ import '../core/api_client.dart';
 import '../models/upload_result.dart';
 
 // ─── Top-level header parser ───────────────────────────────────────────────
-// Scans rows to find the REAL header row, skipping metadata rows at the top.
-// Works even when the file has "From Date:", "To Date:" rows before headers.
 List<String> _extractHeaders(Uint8List bytes) {
   try {
     final workbook = xl.Excel.decodeBytes(bytes);
@@ -16,18 +14,13 @@ List<String> _extractHeaders(Uint8List bytes) {
     if (sheet.rows.isEmpty) return [];
 
     for (final row in sheet.rows) {
-      // Get all non-empty cell values in this row
       final cells = row
           .map((cell) => cell?.value?.toString().trim() ?? '')
           .where((h) => h.isNotEmpty)
           .toList();
 
-      // Skip rows with fewer than 3 cells (blank rows or sparse metadata)
       if (cells.length < 3) continue;
 
-      // Skip rows that look like metadata lines e.g.
-      // "From Date : 15/Jan/2026 (01/10/2082)"
-      // "To Date : 14/Mar/2026 (30/11/2082)"
       final first = cells.first.toLowerCase();
       if (first.startsWith('from') ||
           first.startsWith('to') ||
@@ -36,7 +29,6 @@ List<String> _extractHeaders(Uint8List bytes) {
         continue;
       }
 
-      // This is the header row
       return cells;
     }
 
@@ -161,7 +153,6 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
 
   bool get _isBusy => _isValidating || _isUploading;
 
-  // ── Dropdown change ───────────────────────────────────────────────────────
   void _onTypeChanged(_UploadType newType) {
     setState(() {
       _selected = newType;
@@ -171,16 +162,9 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
     });
   }
 
-  // ── Validate headers ──────────────────────────────────────────────────────
-  // NOTE: On Flutter Web, excel decoding blocks the JS thread and freezes the
-  // browser. We skip client-side validation on web and let the backend handle it.
   Future<String?> _validateHeaders(Uint8List fileBytes) async {
-    if (kIsWeb) {
-      // Skip validation on web — backend will reject wrong files
-      return null;
-    }
+    if (kIsWeb) return null;
 
-    // Yield one frame so spinner renders before heavy parsing begins
     await Future.delayed(Duration.zero);
 
     final actualHeaders = _extractHeaders(fileBytes);
@@ -190,7 +174,6 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
           'Make sure the file has column headers.';
     }
 
-    // Case-insensitive so ITEMCODE matches ItemCode, DESCA matches Desca etc.
     final actualLower = actualHeaders.map((h) => h.toLowerCase()).toSet();
     final missing = _selected.expectedHeaders
         .where((col) => !actualLower.contains(col.toLowerCase()))
@@ -201,12 +184,10 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
           'Missing columns:\n• ${missing.join('\n• ')}';
     }
 
-    return null; 
+    return null;
   }
 
-  // ── Pick → Validate → Upload ──────────────────────────────────────────────
   Future<void> _pickAndUpload() async {
-    // 1. Open file picker
     final pickerResult = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['xlsx', 'xls'],
@@ -224,7 +205,6 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
       return;
     }
 
-    // 2. Show validating state
     setState(() {
       _isValidating = true;
       _isUploading = false;
@@ -233,7 +213,6 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
       _selectedFileName = file.name;
     });
 
-    // 3. Validate headers
     final validationError = await _validateHeaders(file.bytes!);
 
     if (validationError != null) {
@@ -241,10 +220,9 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
         _isValidating = false;
         _errorMessage = validationError;
       });
-      return; 
+      return;
     }
 
-    // 4. Headers OK — upload
     setState(() {
       _isValidating = false;
       _isUploading = true;
@@ -258,14 +236,12 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
       );
       final result = UploadResult.fromJson(responseJson);
       setState(() {
-        // If backend says success=false, show as error message not result banner
         if (!result.success &&
             result.inserted == 0 &&
             result.message.isNotEmpty) {
-          _errorMessage =
-              result.message; // ← shows "Wrong file type. Missing columns..."
+          _errorMessage = result.message;
         } else {
-          _lastResult = result; // ← shows the stats banner for real uploads
+          _lastResult = result;
         }
       });
     } catch (e) {
@@ -275,287 +251,286 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
     }
   }
 
-  // ── Button label ──────────────────────────────────────────────────────────
   String get _buttonLabel {
     if (_isValidating) return 'Validating...';
     if (_isUploading) return 'Uploading...';
     return 'Upload ${_selected.label}';
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Page Header ──
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Excel Upload',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Select a file type and upload your Excel data',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ],
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
           ),
-
-          // ── Main Card ──
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Excel Upload',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── Step 1 ──
-                    const _StepLabel(number: '1', text: 'Select File Type'),
-                    const SizedBox(height: 8),
+              SizedBox(height: 4),
+              Text(
+                'Select a file type and upload your Excel data',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
 
-                    // Dropdown
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 0,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.grey.shade50,
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<_UploadType>(
-                          value: _selected,
-                          isExpanded: true,
-                          icon: const Icon(
-                            Icons.keyboard_arrow_down,
-                            color: Color(0xFF1A237E),
-                          ),
-                          items: _uploadTypes.map((type) {
-                            return DropdownMenuItem<_UploadType>(
-                              value: type,
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    type.icon,
-                                    size: 18,
-                                    color: const Color(0xFF1A237E),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    type.label,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w500,
+        // ── Scrollable Content (pinned below header) ──
+        Expanded(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Step 1 ──
+                      const _StepLabel(number: '1', text: 'Select File Type'),
+                      const SizedBox(height: 8),
+
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.grey.shade50,
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<_UploadType>(
+                            value: _selected,
+                            isExpanded: true,
+                            isDense: true,
+                            icon: const Icon(
+                              Icons.keyboard_arrow_down,
+                              color: Color(0xFF1A237E),
+                            ),
+                            items: _uploadTypes.map((type) {
+                              return DropdownMenuItem<_UploadType>(
+                                value: type,
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      type.icon,
+                                      size: 16,
+                                      color: const Color(0xFF1A237E),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: _isBusy
-                              ? null
-                              : (value) {
-                                  if (value != null) _onTypeChanged(value);
-                                },
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      type.label,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: _isBusy
+                                ? null
+                                : (value) {
+                                    if (value != null) _onTypeChanged(value);
+                                  },
+                          ),
                         ),
                       ),
-                    ),
 
-                    const SizedBox(height: 8),
+                      const SizedBox(height: 8),
 
-                    // Description
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 14,
-                          color: Colors.grey.shade500,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _selected.description,
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 28),
-                    const Divider(),
-                    const SizedBox(height: 20),
-
-                    // ── Step 2 ──
-                    const _StepLabel(number: '2', text: 'Upload Excel File'),
-                    const SizedBox(height: 12),
-
-                    Row(
-                      children: [
-                        // Upload button
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1A237E),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 14,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          onPressed: _isBusy ? null : _pickAndUpload,
-                          icon: _isBusy
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.upload),
-                          label: Text(_buttonLabel),
-                        ),
-
-                        const SizedBox(width: 16),
-
-                        // Filename chip — red if error, green if ok
-                        if (_selectedFileName != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _errorMessage != null
-                                  ? Colors.red.shade50
-                                  : Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _errorMessage != null
-                                    ? Colors.red.shade200
-                                    : Colors.green.shade200,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.description,
-                                  size: 16,
-                                  color: _errorMessage != null
-                                      ? Colors.red.shade600
-                                      : Colors.green.shade600,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _selectedFileName!,
-                                  style: TextStyle(
-                                    color: _errorMessage != null
-                                        ? Colors.red.shade700
-                                        : Colors.green.shade700,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 8),
-                    Text(
-                      'Accepted formats: .xlsx, .xls',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade400,
-                      ),
-                    ),
-
-                    // ── Validating indicator ──
-                    if (_isValidating) ...[
-                      const SizedBox(height: 16),
+                      // Description
                       Row(
                         children: [
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                          Icon(
+                            Icons.info_outline,
+                            size: 14,
+                            color: Colors.grey.shade500,
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 6),
                           Text(
-                            'Checking file headers...',
+                            _selected.description,
                             style: TextStyle(
-                              color: Colors.grey.shade600,
+                              color: Colors.grey.shade500,
                               fontSize: 13,
                             ),
                           ),
                         ],
                       ),
-                    ],
 
-                    // ── Success result ──
-                    if (_lastResult != null) ...[
-                      const SizedBox(height: 24),
-                      _ResultBanner(result: _lastResult!),
-                    ],
+                      const SizedBox(height: 28),
+                      const Divider(),
+                      const SizedBox(height: 20),
 
-                    // ── Error banner ──
-                    if (_errorMessage != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.shade200),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.error_outline,
-                              color: Colors.red,
-                              size: 20,
+                      // ── Step 2 ──
+                      const _StepLabel(number: '2', text: 'Upload Excel File'),
+                      const SizedBox(height: 12),
+
+                      Row(
+                        children: [
+                          // Upload button
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1A237E),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: const TextStyle(color: Colors.red),
+                            onPressed: _isBusy ? null : _pickAndUpload,
+                            icon: _isBusy
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.upload),
+                            label: Text(_buttonLabel),
+                          ),
+
+                          const SizedBox(width: 16),
+
+                          // Filename chip
+                          if (_selectedFileName != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _errorMessage != null
+                                    ? Colors.red.shade50
+                                    : Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: _errorMessage != null
+                                      ? Colors.red.shade200
+                                      : Colors.green.shade200,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.description,
+                                    size: 16,
+                                    color: _errorMessage != null
+                                        ? Colors.red.shade600
+                                        : Colors.green.shade600,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _selectedFileName!,
+                                    style: TextStyle(
+                                      color: _errorMessage != null
+                                          ? Colors.red.shade700
+                                          : Colors.green.shade700,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+                      Text(
+                        'Accepted formats: .xlsx, .xls',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+
+                      // ── Validating indicator ──
+                      if (_isValidating) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Checking file headers...',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 13,
                               ),
                             ),
                           ],
                         ),
-                      ),
+                      ],
+
+                      // ── Success result ──
+                      if (_lastResult != null) ...[
+                        const SizedBox(height: 24),
+                        _ResultBanner(result: _lastResult!),
+                      ],
+
+                      // ── Error banner ──
+                      if (_errorMessage != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                color: Colors.red,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

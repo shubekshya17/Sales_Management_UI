@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum NavItem {
-  categoryRange,
-  excelUpload,
-  salesDetailReport,
-}
+enum NavItem { categoryRange, excelUpload, salesDetailReport }
 
 class Sidebar extends StatelessWidget {
   final NavItem selected;
@@ -23,16 +19,15 @@ class Sidebar extends StatelessWidget {
           // ── App Title ──
           Container(
             padding: const EdgeInsets.fromLTRB(20, 32, 20, 16),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: const Row(
               children: [
-                Icon(Icons.bar_chart, color: Colors.white, size: 28),
-                SizedBox(height: 8),
+                Icon(Icons.bar_chart, color: Colors.white, size: 24),
+                SizedBox(width: 10),
                 Text(
-                  'Sales\nManagement',
+                  'Sales Management',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     height: 1.3,
                   ),
