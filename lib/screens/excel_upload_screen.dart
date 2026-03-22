@@ -1,21 +1,65 @@
+import 'dart:typed_data';
+import 'package:excel/excel.dart' as xl;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../core/api_client.dart';
 import '../models/upload_result.dart';
 
-// Defines all uploadable file types in one place
-// To add a new type later, just add an entry here — nothing else changes
+// ─── Top-level header parser ───────────────────────────────────────────────
+// Scans rows to find the REAL header row, skipping metadata rows at the top.
+// Works even when the file has "From Date:", "To Date:" rows before headers.
+List<String> _extractHeaders(Uint8List bytes) {
+  try {
+    final workbook = xl.Excel.decodeBytes(bytes);
+    final sheet = workbook.sheets.values.first;
+    if (sheet.rows.isEmpty) return [];
+
+    for (final row in sheet.rows) {
+      // Get all non-empty cell values in this row
+      final cells = row
+          .map((cell) => cell?.value?.toString().trim() ?? '')
+          .where((h) => h.isNotEmpty)
+          .toList();
+
+      // Skip rows with fewer than 3 cells (blank rows or sparse metadata)
+      if (cells.length < 3) continue;
+
+      // Skip rows that look like metadata lines e.g.
+      // "From Date : 15/Jan/2026 (01/10/2082)"
+      // "To Date : 14/Mar/2026 (30/11/2082)"
+      final first = cells.first.toLowerCase();
+      if (first.startsWith('from') ||
+          first.startsWith('to') ||
+          first.startsWith('date') ||
+          RegExp(r'^\d{2}/\d{2}/\d{4}').hasMatch(cells.first)) {
+        continue;
+      }
+
+      // This is the header row
+      return cells;
+    }
+
+    return [];
+  } catch (_) {
+    return [];
+  }
+}
+
+// ─── Upload Type Definition ────────────────────────────────────────────────
 class _UploadType {
-  final String label;       // Shown in dropdown
-  final String endpoint;    // API endpoint to call
-  final String description; // Subtitle shown on screen
+  final String label;
+  final String endpoint;
+  final String description;
   final IconData icon;
+  final List<String> expectedHeaders;
 
   const _UploadType({
     required this.label,
     required this.endpoint,
     required this.description,
     required this.icon,
+    required this.expectedHeaders,
   });
 }
 
@@ -25,21 +69,80 @@ const List<_UploadType> _uploadTypes = [
     endpoint: '/SalesCollection/upload',
     description: 'Upload sales collection records from Excel',
     icon: Icons.receipt_long,
+    expectedHeaders: [
+      'Date',
+      'Invoice',
+      'Party',
+      'Gross',
+      'Discount',
+      'NetSale',
+      'Vat',
+      'Total',
+      'TRNUser',
+      'TRNTime',
+      'STax',
+      'Pax',
+      'BillToPan',
+      'BillToMob',
+      'Cash',
+      'CreditCard',
+      'Credit',
+      'Online',
+      'GVoucher',
+      'SalesReturnVoucher',
+      'Complimentary',
+      'TransactionId',
+      'OrderMode',
+    ],
   ),
   _UploadType(
     label: 'Sales Detail',
     endpoint: '/SalesDetail/upload',
     description: 'Upload detailed sales line items from Excel',
     icon: Icons.list_alt,
+    expectedHeaders: [
+      'TRNDATE',
+      'BSDate',
+      'VCHRNO',
+      'REFNO',
+      'ItemCode',
+      'Desca',
+      'BillTo',
+      'Barcode',
+      'BillUnit',
+      'BillQty',
+      'BillRate',
+      'BaseUnit',
+      'BaseQty',
+      'BaseRate',
+      'Amount',
+      'Discount',
+      'SCharge',
+      'NetSale',
+      'Taxable',
+      'NonTaxable',
+      'Vat',
+      'NetAmnt',
+      'TRNUser',
+      'TRNTime',
+      'Division',
+      'Salesman',
+      'MobileNo',
+      'StartTime',
+      'EndTime',
+      'Terminal',
+    ],
   ),
   _UploadType(
     label: 'KOT',
     endpoint: '/kot/upload',
     description: 'Upload Kitchen Order Tickets from Excel',
     icon: Icons.restaurant_menu,
+    expectedHeaders: ['TRNDATE', 'KOTNO'],
   ),
 ];
 
+// ─── Screen ────────────────────────────────────────────────────────────────
 class ExcelUploadScreen extends StatefulWidget {
   const ExcelUploadScreen({super.key});
 
@@ -48,26 +151,62 @@ class ExcelUploadScreen extends StatefulWidget {
 }
 
 class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
-  // Currently selected upload type — defaults to first item
   _UploadType _selected = _uploadTypes.first;
 
-  bool _isLoading = false;
+  bool _isValidating = false;
+  bool _isUploading = false;
   UploadResult? _lastResult;
   String? _errorMessage;
-  String? _selectedFileName; // Shows which file was picked
+  String? _selectedFileName;
 
-  // ── Reset result when dropdown changes ────────────────────────────────────
+  bool get _isBusy => _isValidating || _isUploading;
+
+  // ── Dropdown change ───────────────────────────────────────────────────────
   void _onTypeChanged(_UploadType newType) {
     setState(() {
       _selected = newType;
-      _lastResult = null;       // Clear old result
+      _lastResult = null;
       _errorMessage = null;
-      _selectedFileName = null; // Clear old filename
+      _selectedFileName = null;
     });
   }
 
-  // ── Pick file and upload ───────────────────────────────────────────────────
+  // ── Validate headers ──────────────────────────────────────────────────────
+  // NOTE: On Flutter Web, excel decoding blocks the JS thread and freezes the
+  // browser. We skip client-side validation on web and let the backend handle it.
+  Future<String?> _validateHeaders(Uint8List fileBytes) async {
+    if (kIsWeb) {
+      // Skip validation on web — backend will reject wrong files
+      return null;
+    }
+
+    // Yield one frame so spinner renders before heavy parsing begins
+    await Future.delayed(Duration.zero);
+
+    final actualHeaders = _extractHeaders(fileBytes);
+
+    if (actualHeaders.isEmpty) {
+      return 'Could not find a header row in this file.\n'
+          'Make sure the file has column headers.';
+    }
+
+    // Case-insensitive so ITEMCODE matches ItemCode, DESCA matches Desca etc.
+    final actualLower = actualHeaders.map((h) => h.toLowerCase()).toSet();
+    final missing = _selected.expectedHeaders
+        .where((col) => !actualLower.contains(col.toLowerCase()))
+        .toList();
+
+    if (missing.isNotEmpty) {
+      return 'Wrong file for "${_selected.label}".\n'
+          'Missing columns:\n• ${missing.join('\n• ')}';
+    }
+
+    return null; 
+  }
+
+  // ── Pick → Validate → Upload ──────────────────────────────────────────────
   Future<void> _pickAndUpload() async {
+    // 1. Open file picker
     final pickerResult = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['xlsx', 'xls'],
@@ -79,15 +218,36 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
     final file = pickerResult.files.first;
 
     if (file.bytes == null) {
-      setState(() => _errorMessage = 'Could not read file. Please try again.');
+      setState(
+        () => _errorMessage = 'Could not read file bytes. Please try again.',
+      );
       return;
     }
 
+    // 2. Show validating state
     setState(() {
-      _isLoading = true;
+      _isValidating = true;
+      _isUploading = false;
       _lastResult = null;
       _errorMessage = null;
       _selectedFileName = file.name;
+    });
+
+    // 3. Validate headers
+    final validationError = await _validateHeaders(file.bytes!);
+
+    if (validationError != null) {
+      setState(() {
+        _isValidating = false;
+        _errorMessage = validationError;
+      });
+      return; 
+    }
+
+    // 4. Headers OK — upload
+    setState(() {
+      _isValidating = false;
+      _isUploading = true;
     });
 
     try {
@@ -96,17 +256,33 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
         fileName: file.name,
         fileBytes: file.bytes!,
       );
-
+      final result = UploadResult.fromJson(responseJson);
       setState(() {
-        _lastResult = UploadResult.fromJson(responseJson);
+        // If backend says success=false, show as error message not result banner
+        if (!result.success &&
+            result.inserted == 0 &&
+            result.message.isNotEmpty) {
+          _errorMessage =
+              result.message; // ← shows "Wrong file type. Missing columns..."
+        } else {
+          _lastResult = result; // ← shows the stats banner for real uploads
+        }
       });
     } catch (e) {
       setState(() => _errorMessage = 'Upload failed: $e');
     } finally {
-      setState(() => _isLoading = false);
+      setState(() => _isUploading = false);
     }
   }
 
+  // ── Button label ──────────────────────────────────────────────────────────
+  String get _buttonLabel {
+    if (_isValidating) return 'Validating...';
+    if (_isUploading) return 'Uploading...';
+    return 'Upload ${_selected.label}';
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -118,16 +294,14 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
             decoration: BoxDecoration(
-              border: Border(
-                  bottom: BorderSide(color: Colors.grey.shade200)),
+              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
             ),
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Excel Upload',
-                  style: TextStyle(
-                      fontSize: 26, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 4),
                 Text(
@@ -138,26 +312,29 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
             ),
           ),
 
-          // ── Main Upload Card ──
+          // ── Main Card ──
           Padding(
             padding: const EdgeInsets.all(24),
             child: Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Step 1: Choose type ──
+                    // ── Step 1 ──
                     const _StepLabel(number: '1', text: 'Select File Type'),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
 
                     // Dropdown
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 4),
+                        horizontal: 16,
+                        vertical: 0,
+                      ),
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.grey.shade300),
                         borderRadius: BorderRadius.circular(8),
@@ -167,45 +344,57 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
                         child: DropdownButton<_UploadType>(
                           value: _selected,
                           isExpanded: true,
-                          icon: const Icon(Icons.keyboard_arrow_down,
-                              color: Color(0xFF1A237E)),
+                          icon: const Icon(
+                            Icons.keyboard_arrow_down,
+                            color: Color(0xFF1A237E),
+                          ),
                           items: _uploadTypes.map((type) {
                             return DropdownMenuItem<_UploadType>(
                               value: type,
                               child: Row(
                                 children: [
-                                  Icon(type.icon,
-                                      size: 18,
-                                      color: const Color(0xFF1A237E)),
+                                  Icon(
+                                    type.icon,
+                                    size: 18,
+                                    color: const Color(0xFF1A237E),
+                                  ),
                                   const SizedBox(width: 10),
                                   Text(
                                     type.label,
                                     style: const TextStyle(
-                                        fontWeight: FontWeight.w500),
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ],
                               ),
                             );
                           }).toList(),
-                          onChanged: (value) {
-                            if (value != null) _onTypeChanged(value);
-                          },
+                          onChanged: _isBusy
+                              ? null
+                              : (value) {
+                                  if (value != null) _onTypeChanged(value);
+                                },
                         ),
                       ),
                     ),
 
                     const SizedBox(height: 8),
 
-                    // Dynamic description under dropdown
+                    // Description
                     Row(
                       children: [
-                        Icon(Icons.info_outline,
-                            size: 14, color: Colors.grey.shade500),
+                        Icon(
+                          Icons.info_outline,
+                          size: 14,
+                          color: Colors.grey.shade500,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           _selected.description,
                           style: TextStyle(
-                              color: Colors.grey.shade500, fontSize: 13),
+                            color: Colors.grey.shade500,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
@@ -214,11 +403,10 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
                     const Divider(),
                     const SizedBox(height: 20),
 
-                    // ── Step 2: Upload file ──
+                    // ── Step 2 ──
                     const _StepLabel(number: '2', text: 'Upload Excel File'),
                     const SizedBox(height: 12),
 
-                    // File info + Upload button row
                     Row(
                       children: [
                         // Upload button
@@ -227,52 +415,64 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
                             backgroundColor: const Color(0xFF1A237E),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 14),
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                          onPressed: _isLoading ? null : _pickAndUpload,
-                          icon: _isLoading
+                          onPressed: _isBusy ? null : _pickAndUpload,
+                          icon: _isBusy
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white),
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
                                 )
                               : const Icon(Icons.upload),
-                          // Button label changes based on selection
-                          label: Text(
-                            _isLoading
-                                ? 'Uploading...'
-                                : 'Upload ${_selected.label}',
-                          ),
+                          label: Text(_buttonLabel),
                         ),
 
                         const SizedBox(width: 16),
 
-                        // Selected filename chip — shown after file picked
+                        // Filename chip — red if error, green if ok
                         if (_selectedFileName != null)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
-                              color: Colors.green.shade50,
+                              color: _errorMessage != null
+                                  ? Colors.red.shade50
+                                  : Colors.green.shade50,
                               borderRadius: BorderRadius.circular(8),
-                              border:
-                                  Border.all(color: Colors.green.shade200),
+                              border: Border.all(
+                                color: _errorMessage != null
+                                    ? Colors.red.shade200
+                                    : Colors.green.shade200,
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.description,
-                                    size: 16,
-                                    color: Colors.green.shade600),
+                                Icon(
+                                  Icons.description,
+                                  size: 16,
+                                  color: _errorMessage != null
+                                      ? Colors.red.shade600
+                                      : Colors.green.shade600,
+                                ),
                                 const SizedBox(width: 6),
                                 Text(
                                   _selectedFileName!,
                                   style: TextStyle(
-                                    color: Colors.green.shade700,
+                                    color: _errorMessage != null
+                                        ? Colors.red.shade700
+                                        : Colors.green.shade700,
                                     fontWeight: FontWeight.w500,
                                     fontSize: 13,
                                   ),
@@ -287,10 +487,34 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
                     Text(
                       'Accepted formats: .xlsx, .xls',
                       style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade400),
+                        fontSize: 12,
+                        color: Colors.grey.shade400,
+                      ),
                     ),
 
-                    // ── Result banner ──
+                    // ── Validating indicator ──
+                    if (_isValidating) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Checking file headers...',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
+                    // ── Success result ──
                     if (_lastResult != null) ...[
                       const SizedBox(height: 24),
                       _ResultBanner(result: _lastResult!),
@@ -304,18 +528,22 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
                         decoration: BoxDecoration(
                           color: Colors.red.shade50,
                           borderRadius: BorderRadius.circular(8),
-                          border:
-                              Border.all(color: Colors.red.shade200),
+                          border: Border.all(color: Colors.red.shade200),
                         ),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.error_outline,
-                                color: Colors.red),
+                            const Icon(
+                              Icons.error_outline,
+                              color: Colors.red,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(_errorMessage!,
-                                  style: const TextStyle(
-                                      color: Colors.red)),
+                              child: Text(
+                                _errorMessage!,
+                                style: const TextStyle(color: Colors.red),
+                              ),
                             ),
                           ],
                         ),
@@ -332,8 +560,7 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
   }
 }
 
-// ─── Step Label Widget ─────────────────────────────────────────────────────
-// The little "① Select File Type" label above each step
+// ─── Step Label ────────────────────────────────────────────────────────────
 class _StepLabel extends StatelessWidget {
   final String number;
   final String text;
@@ -354,16 +581,16 @@ class _StepLabel extends StatelessWidget {
           child: Text(
             number,
             style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 13),
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
           ),
         ),
         const SizedBox(width: 10),
         Text(
           text,
-          style: const TextStyle(
-              fontWeight: FontWeight.w600, fontSize: 15),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
         ),
       ],
     );
@@ -383,9 +610,7 @@ class _ResultBanner extends StatelessWidget {
         color: result.success ? Colors.green.shade50 : Colors.red.shade50,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: result.success
-              ? Colors.green.shade300
-              : Colors.red.shade300,
+          color: result.success ? Colors.green.shade300 : Colors.red.shade300,
         ),
       ),
       child: Column(
@@ -398,13 +623,15 @@ class _ResultBanner extends StatelessWidget {
                 color: result.success ? Colors.green : Colors.red,
               ),
               const SizedBox(width: 8),
-              Text(
-                result.message,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: result.success
-                      ? Colors.green.shade800
-                      : Colors.red.shade800,
+              Expanded(
+                child: Text(
+                  result.message,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: result.success
+                        ? Colors.green.shade800
+                        : Colors.red.shade800,
+                  ),
                 ),
               ),
             ],
@@ -415,23 +642,25 @@ class _ResultBanner extends StatelessWidget {
             runSpacing: 8,
             children: [
               _StatChip('Inserted', result.inserted, Colors.green),
-              _StatChip('Skipped', result.skipped, Colors.orange),
+              _StatChip('Updated', result.updated, Colors.orange),
               _StatChip('Failed', result.failed, Colors.red),
               _StatChip('Total Rows', result.totalRowsInFile, Colors.blue),
             ],
           ),
           if (result.errors.isNotEmpty) ...[
             const SizedBox(height: 12),
-            const Text('Row Errors:',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 13)),
+            const Text(
+              'Row Errors:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
             const SizedBox(height: 4),
             ...result.errors.map(
               (e) => Padding(
                 padding: const EdgeInsets.only(bottom: 2),
-                child: Text('• $e',
-                    style: const TextStyle(
-                        fontSize: 12, color: Colors.red)),
+                child: Text(
+                  '• $e',
+                  style: const TextStyle(fontSize: 12, color: Colors.red),
+                ),
               ),
             ),
           ],
@@ -441,6 +670,7 @@ class _ResultBanner extends StatelessWidget {
   }
 }
 
+// ─── Stat Chip ─────────────────────────────────────────────────────────────
 class _StatChip extends StatelessWidget {
   final String label;
   final int value;
@@ -459,9 +689,10 @@ class _StatChip extends StatelessWidget {
       child: Text(
         '$label: $value',
         style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w600,
-            fontSize: 13),
+          color: color,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
       ),
     );
   }

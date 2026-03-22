@@ -18,9 +18,6 @@ class ApiClient {
     required String fileName,
     required List<int> fileBytes,
   }) async {
-    // This creates the multipart/form-data body your API expects
-    // Your API has [FromForm] FileUploadDto with a "File" property
-    // so the field name here must be "file" (case-insensitive on ASP.NET)
     final formData = FormData.fromMap({
       'file': MultipartFile.fromBytes(
         fileBytes,
@@ -32,7 +29,12 @@ class ApiClient {
       ),
     });
 
-    final response = await _dio.post(endpoint, data: formData);
+    final response = await _dio.post(
+      endpoint,
+      data: formData,
+      options: Options(validateStatus: (status) => status! < 500),
+    );
+
     return response.data as Map<String, dynamic>;
   }
 

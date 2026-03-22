@@ -472,7 +472,6 @@ class _CategoryTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categories = report.categoryWiseAmount;
-    final totalAmount = report.netTotal;
 
     return Card(
       elevation: 2,
@@ -534,17 +533,10 @@ class _CategoryTable extends StatelessWidget {
                 DataColumn(label: Text('#')),
                 DataColumn(label: Text('Category Name')),
                 DataColumn(label: Text('Amount')),
-                DataColumn(label: Text('% of Total')),
-                DataColumn(label: Text('Share Bar')),
               ],
               rows: categories.asMap().entries.map((entry) {
                 final index = entry.key;
                 final cat = entry.value;
-
-                // Calculate percentage of total
-                final pct = totalAmount > 0
-                    ? (cat.amount / totalAmount * 100)
-                    : 0.0;
 
                 return DataRow(
                   color: WidgetStateProperty.all(
@@ -585,46 +577,6 @@ class _CategoryTable extends StatelessWidget {
                       Text(
                         formatAmount(cat.amount),
                         style: const TextStyle(fontFamily: 'monospace'),
-                      ),
-                    ),
-
-                    // Percentage badge
-                    DataCell(
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _categoryColor(index).withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '${pct.toStringAsFixed(1)}%',
-                          style: TextStyle(
-                            color: _categoryColor(index),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Visual share bar
-                    DataCell(
-                      SizedBox(
-                        width: 120,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: pct / 100,
-                            minHeight: 8,
-                            backgroundColor: Colors.grey.shade200,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              _categoryColor(index),
-                            ),
-                          ),
-                        ),
                       ),
                     ),
                   ],
@@ -735,16 +687,6 @@ class _EmptyState extends StatelessWidget {
             Text(
               'Select a date range and click "Generate Report"',
               style: TextStyle(color: Colors.grey.shade400),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A237E),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: onGenerate,
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Generate Now'),
             ),
           ],
         ),

@@ -2,16 +2,16 @@ class UploadResult {
   final bool success;
   final String message;
   final int inserted;
-  final int skipped;
+  final int updated;
   final int failed;
   final int totalRowsInFile;
   final List<String> errors;
 
-  UploadResult({
+  const UploadResult({
     required this.success,
     required this.message,
     required this.inserted,
-    required this.skipped,
+    required this.updated,
     required this.failed,
     required this.totalRowsInFile,
     required this.errors,
@@ -19,13 +19,18 @@ class UploadResult {
 
   factory UploadResult.fromJson(Map<String, dynamic> json) {
     return UploadResult(
-      success: json['success'] ?? false,
-      message: json['message'] ?? '',
-      inserted: json['inserted'] ?? 0,
-      skipped: json['skipped'] ?? 0,
-      failed: json['failed'] ?? 0,
-      totalRowsInFile: json['totalRowsInFile'] ?? 0,
-      errors: List<String>.from(json['errors'] ?? []),
+      // Safely parse bool — handles both true/false and missing key
+      success: json['success'] as bool? ?? false,
+      message: json['message'] as String? ?? '',
+      inserted: json['inserted'] as int? ?? 0,
+      updated: json['updated'] as int? ?? 0,
+      failed: json['failed'] as int? ?? 0,
+      totalRowsInFile: json['totalRowsInFile'] as int? ?? 0,
+      // errors can be null or missing — default to empty list
+      errors: (json['errors'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 }

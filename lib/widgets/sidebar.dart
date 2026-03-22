@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 
 enum NavItem {
-  salesCollection,
-  salesDetail,
-  kot,
   categoryRange,
   excelUpload,
   salesDetailReport,
@@ -46,26 +43,7 @@ class Sidebar extends StatelessWidget {
 
           const Divider(color: Colors.white24, thickness: 1),
           const SizedBox(height: 8),
-
           // ── Main Navigation ──
-          _NavTile(
-            icon: Icons.receipt_long,
-            label: 'Sales Collection',
-            isSelected: selected == NavItem.salesCollection,
-            onTap: () => onSelect(NavItem.salesCollection),
-          ),
-          _NavTile(
-            icon: Icons.list_alt,
-            label: 'Sales Detail',
-            isSelected: selected == NavItem.salesDetail,
-            onTap: () => onSelect(NavItem.salesDetail),
-          ),
-          _NavTile(
-            icon: Icons.restaurant_menu,
-            label: 'KOT',
-            isSelected: selected == NavItem.kot,
-            onTap: () => onSelect(NavItem.kot),
-          ),
           _NavTile(
             icon: Icons.upload_file,
             label: 'Excel Upload',
