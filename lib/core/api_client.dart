@@ -71,4 +71,20 @@ class ApiClient {
     );
     return response.data as Map<String, dynamic>;
   }
+
+  static Future<Map<String, dynamic>> getSalesCollectionReport({
+    required DateTime fromDate,
+    required DateTime toDate,
+  }) async {
+    final response = await _dio.post(
+      '/SalesCollectionReport',
+      data: {
+        // Format: "2024-01-01T00:00:00" — what ASP.NET DateTime expects
+        'fromDate': fromDate.toIso8601String(),
+        'toDate': toDate.toIso8601String(),
+      },
+      options: Options(headers: {'Content-Type': 'application/json'}),
+    );
+    return response.data as Map<String, dynamic>;
+  }
 }
