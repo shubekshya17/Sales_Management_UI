@@ -11,8 +11,7 @@ class ApiClient {
     ),
   );
 
-  // Uploads a CSV file to your API
-  // endpoint = '/salescollection/upload' or '/salesdetail/upload'
+  //Excel Upload
   static Future<Map<String, dynamic>> uploadCsv({
     required String endpoint,
     required String fileName,
@@ -38,11 +37,13 @@ class ApiClient {
     return response.data as Map<String, dynamic>;
   }
 
+  //List Category Range
   static Future<List<dynamic>> getCategoryRanges() async {
     final response = await _dio.get('/CategoryRange');
     return response.data as List<dynamic>;
   }
 
+  //Create Category Range
   static Future<Map<String, dynamic>> createCategoryRange(
     Map<String, dynamic> body,
   ) async {
@@ -54,8 +55,7 @@ class ApiClient {
     return response.data as Map<String, dynamic>;
   }
 
-  /// POST /api/salesdetailreport
-  /// Your API takes { fromDate, toDate } and returns the full report
+  //SalesDetail Report
   static Future<Map<String, dynamic>> getSalesDetailReport({
     required DateTime fromDate,
     required DateTime toDate,
@@ -72,6 +72,25 @@ class ApiClient {
     return response.data as Map<String, dynamic>;
   }
 
+  //Sales Detail Report Category Wise
+  static Future<List<dynamic>> getSalesByCategoryDetail({
+    required DateTime fromDate,
+    required DateTime toDate,
+    required String categoryName,
+  }) async {
+    final response = await _dio.post(
+      '/SalesDetailReport/category-detail',
+      data: {
+        'fromDate': fromDate.toIso8601String(),
+        'toDate': toDate.toIso8601String(),
+        'categoryName': categoryName,
+      },
+      options: Options(headers: {'Content-Type': 'application/json'}),
+    );
+    return response.data as List<dynamic>;
+  }
+
+  //Sales Collection Report
   static Future<Map<String, dynamic>> getSalesCollectionReport({
     required DateTime fromDate,
     required DateTime toDate,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/api_client.dart';
 import '../models/sales_detail_report.dart';
+import 'category_detail_screen.dart';
 
 class SalesDetailReportScreen extends StatefulWidget {
   const SalesDetailReportScreen({super.key});
@@ -11,7 +12,6 @@ class SalesDetailReportScreen extends StatefulWidget {
 }
 
 class _SalesDetailReportScreenState extends State<SalesDetailReportScreen> {
-  // Date range — defaults to current month
   DateTime _fromDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _toDate = DateTime.now();
 
@@ -19,7 +19,6 @@ class _SalesDetailReportScreenState extends State<SalesDetailReportScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  // ── Fetch report from API
   Future<void> _generateReport() async {
     setState(() {
       _isLoading = true;
@@ -41,7 +40,6 @@ class _SalesDetailReportScreenState extends State<SalesDetailReportScreen> {
     }
   }
 
-  // ── Date picker helper ─────────────────────────────────────────────────────
   Future<void> _pickDate({required bool isFrom}) async {
     final picked = await showDatePicker(
       context: context,
@@ -49,7 +47,6 @@ class _SalesDetailReportScreenState extends State<SalesDetailReportScreen> {
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
       builder: (context, child) {
-        // Match app color theme
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(primary: Color(0xFF1A237E)),
@@ -64,7 +61,6 @@ class _SalesDetailReportScreenState extends State<SalesDetailReportScreen> {
     setState(() {
       if (isFrom) {
         _fromDate = picked;
-        // Auto-correct: if fromDate is after toDate, move toDate forward
         if (_fromDate.isAfter(_toDate)) _toDate = _fromDate;
       } else {
         _toDate = picked;
@@ -72,12 +68,10 @@ class _SalesDetailReportScreenState extends State<SalesDetailReportScreen> {
     });
   }
 
-  // ── Format helpers ─────────────────────────────────────────────────────────
   String _formatDate(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   String _formatAmount(double amount) {
-    // Formats 84750.0 → "84,750.00"
     final parts = amount.toStringAsFixed(2).split('.');
     final intPart = parts[0];
     final decPart = parts[1];
@@ -89,13 +83,11 @@ class _SalesDetailReportScreenState extends State<SalesDetailReportScreen> {
     return '${buffer.toString()}.$decPart';
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Page Header ──
         Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
@@ -111,21 +103,19 @@ class _SalesDetailReportScreenState extends State<SalesDetailReportScreen> {
               ),
               SizedBox(height: 4),
               Text(
-                'Category-wise sales breakdown with VAT calculation',
+                'Click a category name to view its item breakdown',
                 style: TextStyle(color: Colors.grey),
               ),
             ],
           ),
         ),
 
-        // ── Scrollable Content ──
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Date Filter Card ──
                 _DateFilterCard(
                   fromDate: _fromDate,
                   toDate: _toDate,
@@ -138,11 +128,9 @@ class _SalesDetailReportScreenState extends State<SalesDetailReportScreen> {
 
                 const SizedBox(height: 24),
 
-                // ── Error ──
                 if (_errorMessage != null)
                   _ErrorBanner(message: _errorMessage!),
 
-                // ── Loading ──
                 if (_isLoading)
                   const Center(
                     child: Padding(
@@ -153,21 +141,20 @@ class _SalesDetailReportScreenState extends State<SalesDetailReportScreen> {
                     ),
                   ),
 
-                // ── Report Results ──
                 if (_report != null && !_isLoading) ...[
-                  // Summary cards row
                   _SummaryCardsRow(
                     report: _report!,
                     formatAmount: _formatAmount,
                   ),
-
                   const SizedBox(height: 24),
-
-                  // Category breakdown table
-                  _CategoryTable(report: _report!, formatAmount: _formatAmount),
+                  _CategoryTable(
+                    report: _report!,
+                    formatAmount: _formatAmount,
+                    fromDate: _fromDate,
+                    toDate: _toDate,
+                  ),
                 ],
 
-                // ── Empty state (before first generate) ──
                 if (_report == null && !_isLoading && _errorMessage == null)
                   _EmptyState(onGenerate: _generateReport),
               ],
@@ -215,25 +202,17 @@ class _DateFilterCard extends StatelessWidget {
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(width: 16),
-
-            // From Date button
             _DateButton(
               label: 'From',
               date: formatDate(fromDate),
               onTap: onFromTap,
             ),
-
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12),
               child: Icon(Icons.arrow_forward, size: 16, color: Colors.grey),
             ),
-
-            // To Date button
             _DateButton(label: 'To', date: formatDate(toDate), onTap: onToTap),
-
             const Spacer(),
-
-            // Generate Report button
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1A237E),
@@ -360,7 +339,7 @@ class _SummaryCardsRow extends StatelessWidget {
             icon: Icons.payments,
             color: Colors.green,
             subtitle: 'Net - Discount + VAT',
-            isHighlighted: true, // Makes grand total stand out
+            isHighlighted: true,
           ),
         ),
       ],
@@ -390,7 +369,6 @@ class _SummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        // Highlighted card (Grand Total) gets a solid dark background
         color: isHighlighted ? const Color(0xFF1A237E) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
@@ -407,7 +385,6 @@ class _SummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon + Label row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -436,8 +413,6 @@ class _SummaryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-
-          // Amount
           Text(
             amount,
             style: TextStyle(
@@ -447,8 +422,6 @@ class _SummaryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-
-          // Subtitle
           Text(
             subtitle,
             style: TextStyle(
@@ -466,8 +439,28 @@ class _SummaryCard extends StatelessWidget {
 class _CategoryTable extends StatelessWidget {
   final SalesDetailReportResponse report;
   final String Function(double) formatAmount;
+  final DateTime fromDate;
+  final DateTime toDate;
 
-  const _CategoryTable({required this.report, required this.formatAmount});
+  const _CategoryTable({
+    required this.report,
+    required this.formatAmount,
+    required this.fromDate,
+    required this.toDate,
+  });
+
+  void _navigateToDetail(BuildContext context, String categoryName) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CategoryDetailScreen(
+          categoryName: categoryName,
+          fromDate: fromDate,
+          toDate: toDate,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -479,7 +472,6 @@ class _CategoryTable extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Table header
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
             child: Row(
@@ -518,81 +510,140 @@ class _CategoryTable extends StatelessWidget {
           ),
           const Divider(height: 1),
 
-          // Table
-          SizedBox(
-            width: double.infinity,
-            child: DataTable(
-              headingRowColor: WidgetStateProperty.all(Colors.grey.shade50),
-              columnSpacing: 40,
-              headingTextStyle: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A237E),
-                fontSize: 13,
-              ),
-              columns: const [
-                DataColumn(label: Text('#')),
-                DataColumn(label: Text('Category Name')),
-                DataColumn(label: Text('Amount')),
+          // ── Hint ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
+            child: Row(
+              children: [
+                Icon(Icons.touch_app, size: 14, color: Colors.grey.shade400),
+                const SizedBox(width: 4),
+                Text(
+                  'Tap a category name to view item details',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                ),
               ],
-              rows: categories.asMap().entries.map((entry) {
-                final index = entry.key;
-                final cat = entry.value;
-
-                return DataRow(
-                  color: WidgetStateProperty.all(
-                    index.isEven ? Colors.white : Colors.grey.shade50,
-                  ),
-                  cells: [
-                    // Row number
-                    DataCell(
-                      Text(
-                        '${index + 1}',
-                        style: TextStyle(color: Colors.grey.shade500),
-                      ),
-                    ),
-
-                    // Category name with color dot
-                    DataCell(
-                      Row(
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: _categoryColor(index),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            cat.categoryName,
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Amount
-                    DataCell(
-                      Text(
-                        formatAmount(cat.amount),
-                        style: const TextStyle(fontFamily: 'monospace'),
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
             ),
           ),
 
-          // ── Table Footer — Totals row ──
+          // ── Column headers ──
+          Container(
+            color: Colors.grey.shade50,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 32,
+                  child: Text(
+                    '#',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1A237E),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                const Expanded(
+                  child: Text(
+                    'Category Name',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A237E),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Amount',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A237E),
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(width: 26),
+              ],
+            ),
+          ),
           const Divider(height: 1),
+
+          // ── Rows ──
+          ...categories.asMap().entries.map((entry) {
+            final index = entry.key;
+            final cat = entry.value;
+
+            return Column(
+              children: [
+                InkWell(
+                  onTap: () => _navigateToDetail(context, cat.categoryName),
+                  child: Container(
+                    color: index.isEven ? Colors.white : Colors.grey.shade50,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 32,
+                          child: Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: _categoryColor(index),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        // ── No underline, just bold blue ──
+                        Expanded(
+                          child: Text(
+                            cat.categoryName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1A237E),
+                              // decoration removed
+                            ),
+                          ),
+                        ),
+                        Text(
+                          formatAmount(cat.amount),
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 18,
+                          color: Colors.grey.shade400,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Divider(height: 1, color: Colors.grey.shade100),
+              ],
+            );
+          }),
+
+          // ── Footer ──
           Container(
             color: const Color(0xFF1A237E).withOpacity(0.05),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             child: Row(
               children: [
-                const SizedBox(width: 40), // # column
+                const SizedBox(width: 32),
+                const SizedBox(width: 20),
                 const Expanded(
                   child: Text(
                     'TOTAL',
@@ -610,6 +661,7 @@ class _CategoryTable extends StatelessWidget {
                     color: Color(0xFF1A237E),
                   ),
                 ),
+                const SizedBox(width: 26),
               ],
             ),
           ),
@@ -620,14 +672,14 @@ class _CategoryTable extends StatelessWidget {
 
   Color _categoryColor(int index) {
     const colors = [
-      Color(0xFF1565C0), // blue
-      Color(0xFF2E7D32), // green
-      Color(0xFFE65100), // orange
-      Color(0xFF6A1B9A), // purple
-      Color(0xFFC62828), // red
-      Color(0xFF00695C), // teal
-      Color(0xFF4527A0), // deep purple
-      Color(0xFF558B2F), // light green
+      Color(0xFF1565C0),
+      Color(0xFF2E7D32),
+      Color(0xFFE65100),
+      Color(0xFF6A1B9A),
+      Color(0xFFC62828),
+      Color(0xFF00695C),
+      Color(0xFF4527A0),
+      Color(0xFF558B2F),
     ];
     return colors[index % colors.length];
   }
@@ -661,7 +713,7 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-// ─── Empty State (before first generate) ────────────────────────────────
+// ─── Empty State ──────────────────────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
   final VoidCallback onGenerate;
   const _EmptyState({required this.onGenerate});
