@@ -106,4 +106,22 @@ class ApiClient {
     );
     return response.data as Map<String, dynamic>;
   }
+
+  //Sales Collection Detail Payment Method Wise
+  static Future<List<dynamic>> getSalesDetailPaymentMethodWise({
+    required DateTime fromDate,
+    required DateTime toDate,
+    required String paymentMethod,
+  }) async {
+    final response = await _dio.post(
+      '/SalesCollectionReport/payment-detail',
+      data: {
+        'fromDate': fromDate.toIso8601String(),
+        'toDate': toDate.toIso8601String(),
+        'paymentMethod': paymentMethod,
+      },
+      options: Options(headers: {'Content-Type': 'application/json'}),
+    );
+    return response.data as List<dynamic>;
+  }
 }
