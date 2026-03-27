@@ -124,4 +124,10 @@ class ApiClient {
     );
     return response.data as List<dynamic>;
   }
+
+  static Future<List<dynamic>> getProductList() async {
+    final response = await _dio.get('/Product');
+    return response.data as List<dynamic>;
+  }
 }
+

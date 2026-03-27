@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sales_management_ui/screens/category_range_screen.dart';
 import 'package:sales_management_ui/screens/excel_upload_screen.dart';
+import 'package:sales_management_ui/screens/product_screen.dart';
 import 'package:sales_management_ui/screens/sales_collection_report_screen.dart';
 import 'package:sales_management_ui/screens/sales_detail_report_screen.dart';
 import '../widgets/sidebar.dart';
@@ -27,6 +28,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return const SalesDetailReportScreen();
       case NavItem.salesCollectionReport:
         return const SalesCollectionReportScreen();
+      case NavItem.product:
+        return const ProductScreen();
     }
   }
 
@@ -41,9 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onSelect: (item) => setState(() => _selected = item),
           ),
           // Main content on the right — expands to fill remaining space
-          Expanded(
-            child: _getScreen(),
-          ),
+          Expanded(child: _getScreen()),
         ],
       ),
     );

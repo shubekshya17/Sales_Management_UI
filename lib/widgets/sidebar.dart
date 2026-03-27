@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 
-enum NavItem { categoryRange, excelUpload, salesDetailReport, salesCollectionReport }
+enum NavItem {
+  categoryRange,
+  excelUpload,
+  salesDetailReport,
+  salesCollectionReport,
+  product,
+}
 
 class Sidebar extends StatelessWidget {
   final NavItem selected;
@@ -50,6 +56,12 @@ class Sidebar extends StatelessWidget {
             label: 'Category Range',
             isSelected: selected == NavItem.categoryRange,
             onTap: () => onSelect(NavItem.categoryRange),
+          ),
+          _NavTile(
+            icon: Icons.category,
+            label: 'Product',
+            isSelected: selected == NavItem.product,
+            onTap: () => onSelect(NavItem.product),
           ),
 
           const SizedBox(height: 8),
