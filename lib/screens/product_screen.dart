@@ -15,41 +15,35 @@ class _ProductScreenState extends State<ProductScreen> {
   bool _isLoading = true;
   String? _errorMessage;
 
-  final TextEditingController _nameSearchController = TextEditingController();
-  final TextEditingController _codeSearchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _fetchProducts();
-    _nameSearchController.addListener(_onSearchChanged);
-    _codeSearchController.addListener(_onSearchChanged);
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
-    _nameSearchController.dispose();
-    _codeSearchController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
-  // ─── Filter by name AND item code independently ───────────────────────────
+  // ─── Filter by name OR item code from a single query ──────────────────────
   void _onSearchChanged() {
-    final nameQuery = _nameSearchController.text.trim().toLowerCase();
-    final codeQuery = _codeSearchController.text.trim().toLowerCase();
+    final query = _searchController.text.trim().toLowerCase();
 
     setState(() {
       _filtered = _products.where((p) {
-        final matchesName =
-            nameQuery.isEmpty || p.name.toLowerCase().contains(nameQuery);
-        final matchesCode =
-            codeQuery.isEmpty || p.itemCode.toLowerCase().contains(codeQuery);
-        return matchesName && matchesCode;
+        if (query.isEmpty) return true;
+        return p.name.toLowerCase().contains(query) ||
+            p.itemCode.toLowerCase().contains(query);
       }).toList();
     });
   }
 
-  // ─── Fetch list from GET /api/products ───────────────────────────────────
+  // ─── Fetch list from GET /api/products ────────────────────────────────────
   Future<void> _fetchProducts() async {
     setState(() {
       _isLoading = true;
@@ -72,25 +66,23 @@ class _ProductScreenState extends State<ProductScreen> {
     }
   }
 
-  // ─── Reusable small search field ─────────────────────────────────────────
-  Widget _buildSearchField({
-    required TextEditingController controller,
-    required String hint,
-  }) {
+  // ─── Single unified search field ──────────────────────────────────────────
+  Widget _buildSearchField() {
     return SizedBox(
       height: 40,
+      width: 320,
       child: TextField(
-        controller: controller,
+        controller: _searchController,
         style: const TextStyle(fontSize: 13),
         decoration: InputDecoration(
-          hintText: hint,
+          hintText: 'Search by name or item code…',
           hintStyle: const TextStyle(fontSize: 13),
           prefixIcon: const Icon(Icons.search, size: 18),
-          suffixIcon: controller.text.isNotEmpty
+          suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear, size: 16),
                   onPressed: () {
-                    controller.clear();
+                    _searchController.clear();
                     _onSearchChanged();
                   },
                 )
@@ -124,7 +116,7 @@ class _ProductScreenState extends State<ProductScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Page Header (matches CategoryRangeScreen) ──
+        // ── Page Header ──
         Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
@@ -150,26 +142,8 @@ class _ProductScreenState extends State<ProductScreen> {
                 ],
               ),
 
-              // Right: two compact search bars side by side
-              Row(
-                children: [
-                  SizedBox(
-                    width: 200,
-                    child: _buildSearchField(
-                      controller: _nameSearchController,
-                      hint: 'Search by name…',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 200,
-                    child: _buildSearchField(
-                      controller: _codeSearchController,
-                      hint: 'Search by item code…',
-                    ),
-                  ),
-                ],
-              ),
+              // Right: single unified search bar
+              _buildSearchField(),
             ],
           ),
         ),
@@ -247,10 +221,7 @@ class _ProductScreenState extends State<ProductScreen> {
             ),
             const SizedBox(height: 8),
             TextButton(
-              onPressed: () {
-                _nameSearchController.clear();
-                _codeSearchController.clear();
-              },
+              onPressed: () => _searchController.clear(),
               child: const Text('Clear search'),
             ),
           ],
