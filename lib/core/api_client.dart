@@ -1,4 +1,7 @@
 import 'package:dio/dio.dart';
+import 'package:sales_management_ui/models/category_dropdown.dart';
+import 'package:sales_management_ui/models/product_dropdown.dart';
+import 'package:sales_management_ui/models/product_ingredient_dropdown.dart';
 
 const String baseUrl = 'http://localhost:5145/api';
 
@@ -129,5 +132,35 @@ class ApiClient {
     final response = await _dio.get('/Product');
     return response.data as List<dynamic>;
   }
-}
 
+  //Category Dropdown
+  static Future<List<CategoryDropdown>> getCategoryDropdown() async {
+    final response = await _dio.get('/CategoryRange/Dropdown');
+
+    return (response.data as List)
+        .map((item) => CategoryDropdown.fromJson(item))
+        .toList();
+  }
+
+  //Product Dropdown By Category id
+  static Future<List<ProductDropdown>> getProductDropdown(
+    int categoryId,
+  ) async {
+    final response = await _dio.get(
+      '/Product/Dropdown',
+      queryParameters: {'categoryId': categoryId},
+    );
+    return (response.data as List)
+        .map((item) => ProductDropdown.fromJson(item))
+        .toList();
+  }
+
+  //Product Ingredient Dropdown
+  static Future<List<ProductIngredientDropdown>>
+  getProductIngredientDropdown() async {
+    final response = await _dio.get('/ProductIngredient/Dropdown');
+    return (response.data as List)
+        .map((item) => ProductIngredientDropdown.fromJson(item))
+        .toList();
+  }
+}
