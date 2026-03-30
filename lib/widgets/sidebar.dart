@@ -58,7 +58,7 @@ class Sidebar extends StatelessWidget {
             onTap: () => onSelect(NavItem.categoryRange),
           ),
           _NavTile(
-            icon: Icons.category,
+            icon: Icons.inventory_2_rounded,
             label: 'Product',
             isSelected: selected == NavItem.product,
             onTap: () => onSelect(NavItem.product),
@@ -91,13 +91,13 @@ class Sidebar extends StatelessWidget {
 
           // ── Report Items ──
           _NavTile(
-            icon: Icons.bar_chart_rounded,
+            icon: Icons.receipt_long_rounded,
             label: 'Sales Detail Report',
             isSelected: selected == NavItem.salesDetailReport,
             onTap: () => onSelect(NavItem.salesDetailReport),
           ),
           _NavTile(
-            icon: Icons.bar_chart_rounded,
+            icon: Icons.account_balance_wallet_rounded,
             label: 'Sales Collection Report',
             isSelected: selected == NavItem.salesCollectionReport,
             onTap: () => onSelect(NavItem.salesCollectionReport),

@@ -153,6 +153,16 @@ const List<_UploadType> _uploadTypes = [
       'KotId',
     ],
   ),
+  _UploadType(
+    label: 'Product Ingredients',
+    endpoint: '/ProductIngredient/upload',
+    description: 'Upload product ingredients with units from Excel',
+    icon: Icons.inventory_2, // or Icons.kitchen, Icons.restaurant
+    expectedHeaders: [
+      'Particulars',
+      'Unit Rate', // or 'Unit' - your parser handles both
+    ],
+  ),
 ];
 
 // ─── Screen ────────────────────────────────────────────────────────────────
@@ -196,6 +206,22 @@ class _ExcelUploadScreenState extends State<ExcelUploadScreen> {
     }
 
     final actualLower = actualHeaders.map((h) => h.toLowerCase()).toSet();
+
+    // Special handling for Product Ingredients (only 2 required columns)
+    if (_selected.label == 'Product Ingredients') {
+      final hasParticulars = actualLower.contains('particulars');
+      final hasUnit =
+          actualLower.contains('unit rate') || actualLower.contains('unit');
+
+      if (!hasParticulars || !hasUnit) {
+        return 'Wrong file for "Product Ingredients".\n'
+            'Required columns: Particulars and Unit (or Unit Rate)';
+      }
+
+      return null;
+    }
+
+    // Standard validation for other upload types
     final missing = _selected.expectedHeaders
         .where((col) => !actualLower.contains(col.toLowerCase()))
         .toList();
