@@ -163,4 +163,30 @@ class ApiClient {
         .map((item) => ProductIngredientDropdown.fromJson(item))
         .toList();
   }
+
+  static Future<void> saveProductRecipe(Map<String, dynamic> recipeData) async {
+    try {
+      final response = await _dio.post(
+        '$baseUrl/product-recipes', 
+        data: recipeData, 
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return;
+      } else {
+        throw Exception(
+          'Failed to save recipe: ${response.statusCode} - ${response.statusMessage}',
+        );
+      }
+    } on DioException catch (e) {
+      throw Exception('Dio error: ${e.response?.data ?? e.message}');
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
+    }
+  }
 }

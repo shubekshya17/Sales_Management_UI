@@ -19,6 +19,7 @@ class _ProductRecipeScreenState extends State<ProductRecipeScreen> {
   bool _isLoadingCategories = false;
   bool _isLoadingProducts = false;
   bool _isLoadingIngredients = false;
+  bool _isSaving = false;
 
   // Data lists
   List<CategoryDropdown> _categories = [];
@@ -148,6 +149,104 @@ class _ProductRecipeScreenState extends State<ProductRecipeScreen> {
     });
   }
 
+  Future<void> _saveRecipe() async {
+    if (_selectedCategory == null || _selectedProduct == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select category and product'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedIngredients.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please add at least one ingredient'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Validate quantities
+    for (var ingredient in _selectedIngredients) {
+      if (ingredient.quantity <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Please enter valid quantity for ${ingredient.ingredient.ingredient}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Prepare data to save
+      final recipeData = {
+        'categoryId': _selectedCategory!.id,
+        'productId': _selectedProduct!.id,
+        'ingredients': _selectedIngredients.map((ingredient) {
+          return {
+            'productIngredientId': ingredient.ingredient.id,
+            'unitName': ingredient.ingredient.unit,
+            'quantity': ingredient.quantity,
+          };
+        }).toList(),
+      };
+
+      // Call API to save (you'll need to implement this in ApiClient)
+      await ApiClient.saveProductRecipe(recipeData);
+      
+      // For now, just print the data
+      print('Saving recipe data: $recipeData');
+
+      setState(() {
+        _isSaving = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Recipe saved successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Clear form after successful save
+        setState(() {
+          _selectedCategory = null;
+          _selectedProduct = null;
+          _selectedIngredients = [];
+          _products = [];
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isSaving = false;
+        _errorMessage = 'Failed to save recipe: $e';
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save recipe: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -219,37 +318,56 @@ class _ProductRecipeScreenState extends State<ProductRecipeScreen> {
                         const SizedBox(height: 24),
                       ],
 
-                      // Category Dropdown
-                      _FormLabel('Item Category'),
-                      const SizedBox(height: 8),
-                      _isLoadingCategories
-                          ? const LinearProgressIndicator()
-                          : _buildDropdown<CategoryDropdown>(
-                              value: _selectedCategory,
-                              items: _categories,
-                              hint: 'Select a category',
-                              displayText: (c) => c.categoryName,
-                              onChanged: _onCategoryChanged,
+                      // Category and Product in horizontal layout
+                      Row(
+                        children: [
+                          // Category Dropdown
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _FormLabel('Item Category'),
+                                const SizedBox(height: 8),
+                                _isLoadingCategories
+                                    ? const LinearProgressIndicator()
+                                    : _SearchableDropdown<CategoryDropdown>(
+                                        value: _selectedCategory,
+                                        items: _categories,
+                                        hint: 'Select a category',
+                                        displayText: (c) => c.categoryName,
+                                        onChanged: _onCategoryChanged,
+                                      ),
+                              ],
                             ),
+                          ),
 
-                      const SizedBox(height: 24),
+                          const SizedBox(width: 24),
 
-                      // Product Dropdown
-                      _FormLabel('Item Name'),
-                      const SizedBox(height: 8),
-                      _isLoadingProducts
-                          ? const LinearProgressIndicator()
-                          : _buildDropdown<ProductDropdown>(
-                              value: _selectedProduct,
-                              items: _products,
-                              hint: _selectedCategory == null
-                                  ? 'Select a category first'
-                                  : 'Select a product',
-                              displayText: (p) => p.name,
-                              onChanged: _selectedCategory == null
-                                  ? null
-                                  : _onProductChanged,
+                          // Product Dropdown
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _FormLabel('Item Name'),
+                                const SizedBox(height: 8),
+                                _isLoadingProducts
+                                    ? const LinearProgressIndicator()
+                                    : _SearchableDropdown<ProductDropdown>(
+                                        value: _selectedProduct,
+                                        items: _products,
+                                        hint: _selectedCategory == null
+                                            ? 'Select a category first'
+                                            : 'Select a product',
+                                        displayText: (p) => p.name,
+                                        onChanged: _selectedCategory == null
+                                            ? null
+                                            : _onProductChanged,
+                                      ),
+                              ],
                             ),
+                          ),
+                        ],
+                      ),
 
                       const SizedBox(height: 24),
 
@@ -257,7 +375,7 @@ class _ProductRecipeScreenState extends State<ProductRecipeScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _FormLabel('Ingredients'),
+                          _FormLabel('Item Ingredients'),
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF1A237E),
@@ -312,19 +430,21 @@ class _ProductRecipeScreenState extends State<ProductRecipeScreen> {
 
                       const SizedBox(height: 32),
 
-                      // Action Buttons (for later - save functionality)
+                      // Action Buttons
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _selectedCategory = null;
-                                _selectedProduct = null;
-                                _selectedIngredients = [];
-                                _products = [];
-                              });
-                            },
+                            onPressed: _isSaving
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _selectedCategory = null;
+                                      _selectedProduct = null;
+                                      _selectedIngredients = [];
+                                      _products = [];
+                                    });
+                                  },
                             child: const Text('Clear'),
                           ),
                           const SizedBox(width: 12),
@@ -340,15 +460,21 @@ class _ProductRecipeScreenState extends State<ProductRecipeScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            onPressed: _selectedIngredients.isEmpty
+                            onPressed: (_selectedIngredients.isEmpty || _isSaving)
                                 ? null
-                                : () {
-                                    // TODO: Save functionality in next step
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Saved')),
-                                    );
-                                  },
-                            child: const Text('Save Recipe'),
+                                : _saveRecipe,
+                            child: _isSaving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : const Text('Save Recipe'),
                           ),
                         ],
                       ),
@@ -360,39 +486,6 @@ class _ProductRecipeScreenState extends State<ProductRecipeScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildDropdown<T>({
-    required T? value,
-    required List<T> items,
-    required String hint,
-    required String Function(T) displayText,
-    required void Function(T?)? onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-        color: onChanged == null ? Colors.grey.shade100 : Colors.grey.shade50,
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          isExpanded: true,
-          isDense: true,
-          hint: Text(hint),
-          icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF1A237E)),
-          items: items.map((item) {
-            return DropdownMenuItem<T>(
-              value: item,
-              child: Text(displayText(item)),
-            );
-          }).toList(),
-          onChanged: onChanged,
-        ),
-      ),
     );
   }
 }
@@ -407,6 +500,258 @@ class _FormLabel extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+    );
+  }
+}
+
+// Searchable Dropdown Widget
+class _SearchableDropdown<T> extends StatefulWidget {
+  final T? value;
+  final List<T> items;
+  final String hint;
+  final String Function(T) displayText;
+  final void Function(T?)? onChanged;
+
+  const _SearchableDropdown({
+    required this.value,
+    required this.items,
+    required this.hint,
+    required this.displayText,
+    required this.onChanged,
+  });
+
+  @override
+  State<_SearchableDropdown<T>> createState() => _SearchableDropdownState<T>();
+}
+
+class _SearchableDropdownState<T> extends State<_SearchableDropdown<T>> {
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  List<T> _filteredItems = [];
+  bool _isOpen = false;
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredItems = widget.items;
+  }
+
+  @override
+  void didUpdateWidget(_SearchableDropdown<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.items != oldWidget.items) {
+      _filteredItems = widget.items;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _focusNode.dispose();
+    _removeOverlay();
+    super.dispose();
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  void _toggleDropdown() {
+    if (widget.onChanged == null) return;
+
+    if (_isOpen) {
+      _closeDropdown();
+    } else {
+      _openDropdown();
+    }
+  }
+
+  void _openDropdown() {
+    setState(() {
+      _isOpen = true;
+      _filteredItems = widget.items;
+      _searchController.clear();
+    });
+
+    _overlayEntry = _createOverlayEntry();
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _closeDropdown() {
+    setState(() {
+      _isOpen = false;
+    });
+    _removeOverlay();
+  }
+
+  void _filterItems(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredItems = widget.items;
+      } else {
+        _filteredItems = widget.items
+            .where((item) => widget
+                .displayText(item)
+                .toLowerCase()
+                .contains(query.toLowerCase()))
+            .toList();
+      }
+    });
+    // Rebuild overlay
+    _overlayEntry?.markNeedsBuild();
+  }
+
+  OverlayEntry _createOverlayEntry() {
+    RenderBox renderBox = context.findRenderObject() as RenderBox;
+    var size = renderBox.size;
+
+    return OverlayEntry(
+      builder: (context) => Positioned(
+        width: size.width,
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          showWhenUnlinked: false,
+          offset: Offset(0.0, size.height + 5.0),
+          child: Material(
+            elevation: 4.0,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 250),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Search field
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Search...',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onChanged: _filterItems,
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  // Items list
+                  Flexible(
+                    child: _filteredItems.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Text(
+                              'No items found',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            padding: EdgeInsets.zero,
+                            itemCount: _filteredItems.length,
+                            itemBuilder: (context, index) {
+                              final item = _filteredItems[index];
+                              final isSelected = widget.value == item;
+                              return InkWell(
+                                onTap: () {
+                                  widget.onChanged?.call(item);
+                                  _closeDropdown();
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color(0xFF1A237E)
+                                            .withOpacity(0.1)
+                                        : null,
+                                  ),
+                                  child: Text(
+                                    widget.displayText(item),
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? const Color(0xFF1A237E)
+                                          : Colors.black,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: InkWell(
+        onTap: _toggleDropdown,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _isOpen
+                  ? const Color(0xFF1A237E)
+                  : Colors.grey.shade300,
+              width: _isOpen ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            color: widget.onChanged == null
+                ? Colors.grey.shade100
+                : Colors.grey.shade50,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  widget.value != null
+                      ? widget.displayText(widget.value as T)
+                      : widget.hint,
+                  style: TextStyle(
+                    color: widget.value != null
+                        ? Colors.black
+                        : Colors.grey.shade600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              Icon(
+                _isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                color: const Color(0xFF1A237E),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
