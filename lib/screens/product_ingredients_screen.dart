@@ -206,7 +206,7 @@ class _ProductRecipeScreenState extends State<ProductRecipeScreen> {
 
       // Call API to save (you'll need to implement this in ApiClient)
       await ApiClient.saveProductRecipe(recipeData);
-      
+
       // For now, just print the data
       print('Saving recipe data: $recipeData');
 
@@ -460,7 +460,8 @@ class _ProductRecipeScreenState extends State<ProductRecipeScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            onPressed: (_selectedIngredients.isEmpty || _isSaving)
+                            onPressed:
+                                (_selectedIngredients.isEmpty || _isSaving)
                                 ? null
                                 : _saveRecipe,
                             child: _isSaving
@@ -593,10 +594,12 @@ class _SearchableDropdownState<T> extends State<_SearchableDropdown<T>> {
         _filteredItems = widget.items;
       } else {
         _filteredItems = widget.items
-            .where((item) => widget
-                .displayText(item)
-                .toLowerCase()
-                .contains(query.toLowerCase()))
+            .where(
+              (item) => widget
+                  .displayText(item)
+                  .toLowerCase()
+                  .contains(query.toLowerCase()),
+            )
             .toList();
       }
     });
@@ -679,8 +682,9 @@ class _SearchableDropdownState<T> extends State<_SearchableDropdown<T>> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: isSelected
-                                        ? const Color(0xFF1A237E)
-                                            .withOpacity(0.1)
+                                        ? const Color(
+                                            0xFF1A237E,
+                                          ).withOpacity(0.1)
                                         : null,
                                   ),
                                   child: Text(
@@ -718,9 +722,7 @@ class _SearchableDropdownState<T> extends State<_SearchableDropdown<T>> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             border: Border.all(
-              color: _isOpen
-                  ? const Color(0xFF1A237E)
-                  : Colors.grey.shade300,
+              color: _isOpen ? const Color(0xFF1A237E) : Colors.grey.shade300,
               width: _isOpen ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(8),
@@ -827,8 +829,9 @@ class _IngredientCardState extends State<_IngredientCard> {
             const SizedBox(width: 16),
 
             // Quantity input
-            Expanded(
-              flex: 2,
+            // Quantity input
+            SizedBox(
+              width: 90,
               child: TextField(
                 controller: _controller,
                 keyboardType: const TextInputType.numberWithOptions(
@@ -844,8 +847,8 @@ class _IngredientCardState extends State<_IngredientCard> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
+                    horizontal: 8,
+                    vertical: 8,
                   ),
                 ),
                 onChanged: (value) {

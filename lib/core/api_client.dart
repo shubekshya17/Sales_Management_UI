@@ -167,13 +167,9 @@ class ApiClient {
   static Future<void> saveProductRecipe(Map<String, dynamic> recipeData) async {
     try {
       final response = await _dio.post(
-        '$baseUrl/product-recipes', 
-        data: recipeData, 
-        options: Options(
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        ),
+        '$baseUrl/product-recipes',
+        data: recipeData,
+        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -185,6 +181,36 @@ class ApiClient {
       }
     } on DioException catch (e) {
       throw Exception('Dio error: ${e.response?.data ?? e.message}');
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  //List Product Ingredient
+  static Future<List<dynamic>> getProductIngredients() async {
+    final response = await _dio.get('/ProductIngredient');
+    return response.data as List<dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> createProductIngredient(
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final response = await _dio.post(
+        '/ProductIngredient',
+        data: body,
+        options: Options(headers: {'Content-Type': 'application/json'}),
+      );
+
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      final data = e.response?.data;
+
+      if (data is Map && data['message'] != null) {
+        throw data['message'];
+      }
+
+      throw Exception(data?.toString() ?? e.message ?? 'Something went wrong');
     } catch (e) {
       throw Exception('Unexpected error: $e');
     }
