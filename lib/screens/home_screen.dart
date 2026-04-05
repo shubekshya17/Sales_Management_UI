@@ -3,6 +3,7 @@ import 'package:sales_management_ui/screens/category_range_screen.dart';
 import 'package:sales_management_ui/screens/excel_upload_screen.dart';
 import 'package:sales_management_ui/screens/product_ingredient_list_screen.dart';
 import 'package:sales_management_ui/screens/product_ingredients_screen.dart';
+import 'package:sales_management_ui/screens/product_recipe_list_screen.dart';
 import 'package:sales_management_ui/screens/product_screen.dart';
 import 'package:sales_management_ui/screens/sales_collection_report_screen.dart';
 import 'package:sales_management_ui/screens/sales_detail_report_screen.dart';
@@ -36,6 +37,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return const ProductIngredientListScreen();
       case NavItem.productRecipe:
         return const ProductRecipeScreen();
+      case NavItem.productRecipeList:
+        return const ProductRecipeListScreen();
     }
   }
 

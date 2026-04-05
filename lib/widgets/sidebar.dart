@@ -8,6 +8,7 @@ enum NavItem {
   product,
   productIngredient,
   productRecipe,
+  productRecipeList,
 }
 
 class Sidebar extends StatelessWidget {
@@ -65,7 +66,7 @@ class Sidebar extends StatelessWidget {
             isSelected: selected == NavItem.product,
             onTap: () => onSelect(NavItem.product),
           ),
-           _NavTile(
+          _NavTile(
             icon: Icons.fastfood,
             label: 'Product Ingredients',
             isSelected: selected == NavItem.productIngredient,
@@ -77,6 +78,12 @@ class Sidebar extends StatelessWidget {
             label: 'Product Recipe',
             isSelected: selected == NavItem.productRecipe,
             onTap: () => onSelect(NavItem.productRecipe),
+          ),
+          _NavTile(
+            icon: Icons.list_alt_rounded,
+            label: 'Product Recipe List',
+            isSelected: selected == NavItem.productRecipeList,
+            onTap: () => onSelect(NavItem.productRecipeList),
           ),
 
           const SizedBox(height: 8),

@@ -73,7 +73,7 @@ class _ProductIngredientListScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Category Range',
+                    'Product Ingredients',
                     style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),

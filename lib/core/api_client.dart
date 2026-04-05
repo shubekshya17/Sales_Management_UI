@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:sales_management_ui/models/category_dropdown.dart';
 import 'package:sales_management_ui/models/product_dropdown.dart';
 import 'package:sales_management_ui/models/product_ingredient_dropdown.dart';
+import 'package:sales_management_ui/models/product_recipe.dart';
 
 const String baseUrl = 'http://localhost:5145/api';
 
@@ -213,6 +214,34 @@ class ApiClient {
       throw Exception(data?.toString() ?? e.message ?? 'Something went wrong');
     } catch (e) {
       throw Exception('Unexpected error: $e');
+    }
+  }
+
+  static Future<List<ProductRecipe>> getAllProductRecipes() async {
+    try {
+      final response = await _dio.get(
+        '$baseUrl/product-recipes',
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            // Add auth headers if needed
+          },
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = response.data;
+
+        return jsonList.map((json) => ProductRecipe.fromJson(json)).toList();
+      } else {
+        throw Exception(
+          'Failed to load product recipes: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      throw Exception('Dio error: ${e.response?.data ?? e.message}');
+    } catch (e) {
+      throw Exception('Error fetching product recipes: $e');
     }
   }
 }
